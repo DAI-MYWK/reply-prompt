@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>議会答弁プロンプト生成ツール</title>
+<style>
+  /* ===== v5 ベース: 画面構成・カラー・操作性 ===== */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f3f2f1;
+    color: #333;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ===== HEADER (v5 style) ===== */
+  header {
+    background-color: white;
+    padding: 12px 20px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  header h1 {
+    margin: 0;
+    font-size: 1.2rem;
+    color: #0078d4;
+    font-weight: 600;
+  }
+  #header-status {
+    font-size: 0.9rem;
+    color: #666;
+    min-height: 1.2em;
+    text-align: right;
+  }
+
+  /* ===== MAIN LAYOUT ===== */
+  main {
+    flex: 1;
+    display: flex;
+    gap: 0;
+    max-width: 1320px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 20px;
+    box-sizing: border-box;
+  }
+
+  /* ===== LEFT PANEL ===== */
+  .left-panel {
+    flex: 0 0 58%;
+    padding: 0 24px 0 0;
+    overflow-y: auto;
+    border-right: 1px solid #e0e0e0;
+  }
+
+  /* ===== RIGHT PANEL (v5 paper-container style) ===== */
+  .right-panel {
+    flex: 0 0 42%;
+    display: flex;
+    flex-direction: column;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    border: 1px solid #e0e0e0;
+    padding: 20px;
+    gap: 12px;
+    overflow-y: auto;
+    position: sticky;
+    top: 53px;
+    height: calc(100vh - 93px);
+  }
+
+  /* ===== INSTRUCTIONS (v5 style) ===== */
+  .instructions {
+    background-color: #e6f2ff;
+    border: 1px solid #cce4ff;
+    border-radius: 6px;
+    padding: 10px 16px;
+    margin-bottom: 20px;
+    font-size: 0.9rem;
+  }
+  .instructions h3 {
+    margin: 0 0 8px 0;
+    font-size: 1rem;
+    color: #0078d4;
+  }
+  .instructions ol { padding-left: 24px; }
+  .instructions li { margin-bottom: 4px; }
+
+  /* ===== SECTION CARD (v5 paper-container style) ===== */
+  .section-card {
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    border: 1px solid #e0e0e0;
+    padding: 16px 18px;
+    margin-bottom: 16px;
+  }
+  .section-title {
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: #0078d4;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .step-badge {
+    background-color: #0078d4;
+    color: #fff;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.78rem;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  /* ===== FORM ELEMENTS (v5 input style) ===== */
+  .form-label {
+    display: block;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #444;
+    margin-bottom: 6px;
+    margin-top: 12px;
+  }
+  .form-label:first-child { margin-top: 0; }
+  .required { color: #d13438; margin-left: 3px; }
+
+  input[type="text"], textarea, select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #d0d0d0;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 0.95rem;
+    color: #333;
+    background: #fff;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    outline: none;
+    box-sizing: border-box;
+  }
+  input[type="text"]:focus, textarea:focus, select:focus {
+    border-color: #0078d4;
+    box-shadow: 0 0 0 2px rgba(0,120,212,0.18);
+  }
+  textarea { resize: vertical; line-height: 1.6; }
+
+  .info-badge {
+    display: inline-block;
+    background-color: #e6f2ff;
+    color: #0078d4;
+    font-size: 0.8rem;
+    padding: 3px 10px;
+    border-radius: 12px;
+    margin-top: 6px;
+    font-weight: 600;
+  }
+
+  .char-count { font-size: 0.75rem; color: #aaa; text-align: right; margin-top: 3px; }
+
+  /* ===== STANCE TOGGLE (v5 output-format-btn style) ===== */
+  .stance-group {
+    display: flex;
+    gap: 0;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid #d0d0d0;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+  .stance-btn {
+    flex: 1;
+    padding: 12px 8px;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.88rem;
+    font-weight: 700;
+    transition: all 0.2s;
+    background-color: #f4f4f4;
+    color: #555;
+    border-right: 1px solid #d0d0d0;
+  }
+  .stance-btn:last-child { border-right: none; }
+  .stance-btn:hover { filter: brightness(0.95); transform: translateY(-1px); }
+  .stance-btn.positive.is-active  { background-color: #107c10; color: #fff; }
+  .stance-btn.negative.is-active  { background-color: #d13438; color: #fff; }
+  .stance-btn.conditional.is-active { background-color: #ff9800; color: #fff; }
+
+  .stance-hint {
+    margin-top: 8px;
+    font-size: 0.83rem;
+    padding: 7px 12px;
+    border-radius: 5px;
+    line-height: 1.5;
+  }
+  .stance-hint.positive   { background: #e8f5e9; color: #1b5e20; border: 1px solid #c8e6c9; }
+  .stance-hint.negative   { background: #fce4ec; color: #b71c1c; border: 1px solid #f8bbd0; }
+  .stance-hint.conditional{ background: #fff8e1; color: #e65100; border: 1px solid #ffe0b2; }
+
+  /* ===== TYPE CARDS ===== */
+  .type-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .type-card {
+    border: 1.5px solid #d0d0d0;
+    border-radius: 6px;
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    background: #fff;
+    user-select: none;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  }
+  .type-card:hover { border-color: #0078d4; background: #f0f7ff; transform: translateY(-1px); }
+  .type-card.is-checked { border-color: #0078d4; background: #e6f2ff; }
+  .type-card input[type="checkbox"] { margin-top: 2px; flex-shrink: 0; accent-color: #0078d4; }
+  .type-code { font-weight: 700; font-size: 0.88rem; color: #0078d4; }
+  .type-desc { font-size: 0.78rem; color: #666; margin-top: 2px; }
+  .type-note-ok   { font-size: 0.73rem; color: #107c10; margin-top: 3px; font-weight: 600; }
+  .type-note-warn { font-size: 0.73rem; color: #d83b01; margin-top: 3px; font-weight: 600; }
+  .type-note-info { font-size: 0.73rem; color: #0078d4; margin-top: 3px; font-weight: 600; }
+
+  /* ===== DYNAMIC FIELDS (v5 details/summary style) ===== */
+  .dynamic-panel {
+    display: none;
+    margin-top: 10px;
+    border: 1px solid #d0d0d0;
+    border-radius: 6px;
+    background: #fff;
+  }
+  .dynamic-panel.is-open { display: block; }
+  .dynamic-panel-header {
+    padding: 10px 12px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #444;
+    background: #fafafa;
+    border-bottom: 1px solid #e5e5e5;
+    border-radius: 6px 6px 0 0;
+  }
+  .dynamic-panel-body { padding: 12px; }
+
+  .warning-box {
+    background-color: #fff4ce;
+    border: 1px solid #ffc107;
+    border-radius: 5px;
+    padding: 8px 12px;
+    font-size: 0.8rem;
+    color: #7a5b00;
+    margin-top: 8px;
+  }
+  .info-box {
+    background-color: #e6f2ff;
+    border: 1px solid #cce4ff;
+    border-radius: 5px;
+    padding: 8px 12px;
+    font-size: 0.8rem;
+    color: #004578;
+    margin-top: 8px;
+  }
+
+  /* ===== OPTIONS ===== */
+  .options-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+    margin-bottom: 12px;
+  }
+  .opt-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 0.85rem;
+    padding: 5px 6px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .opt-item:hover { background: #f0f7ff; }
+  .opt-item input[type="checkbox"] { accent-color: #0078d4; flex-shrink: 0; }
+
+  /* ===== GENERATE BUTTON (v5 button style) ===== */
+  .btn-generate {
+    width: 100%;
+    padding: 12px;
+    background-color: #0078d4;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 1rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    margin-top: 12px;
+  }
+  .btn-generate:hover {
+    background-color: #0060aa;
+    transform: translateY(-1px);
+  }
+  .btn-generate:active { transform: translateY(0); }
+
+  /* ===== RIGHT PANEL: PROMPT DISPLAY (v5 light theme) ===== */
+  .prompt-panel-header {
+    color: #0078d4;
+    font-size: 0.9rem;
+    font-weight: 700;
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.73rem;
+    color: #666;
+  }
+  .legend-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .prompt-box {
+    flex: 1;
+    background: #fafafa;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    padding: 16px;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 0.8rem;
+    line-height: 1.85;
+    color: #333;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+    min-height: 240px;
+  }
+  .prompt-box .placeholder { color: #aaa; }
+
+  /* Prompt color segments (light theme) */
+  .seg-q    { color: #0060aa; }
+  .seg-sup  { color: #b45300; }
+  .seg-inst { color: #c239b3; }
+  .seg-st   { color: #107c10; }
+  .seg-rule { color: #666; }
+  .seg-opt  { color: #7b2c8f; }
+
+  .action-btns { display: flex; gap: 12px; }
+  .btn-copy, .btn-clear {
+    flex: 1;
+    padding: 12px;
+    border: none;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+  .btn-copy  { background-color: #107c10; color: #fff; }
+  .btn-copy:hover  { background-color: #0b5e0b; transform: translateY(-1px); }
+  .btn-clear { background-color: #605e5c; color: #fff; }
+  .btn-clear:hover { background-color: #484644; transform: translateY(-1px); }
+
+  .guide-box {
+    background: #e6f2ff;
+    border: 1px solid #cce4ff;
+    border-radius: 6px;
+    padding: 12px 14px;
+  }
+  .guide-box .guide-title { color: #0078d4; font-size: 0.9rem; font-weight: 700; margin-bottom: 7px; }
+  .guide-box .guide-body  { color: #666; font-size: 0.85rem; line-height: 1.9; }
+
+  /* ===== 開くURL・コピー状態 (v5 style) ===== */
+  .prompt-section { margin-top: 16px; }
+  .action-row { margin-top: 10px; display: flex; gap: 10px; }
+  #copyStatus {
+    margin-top: 8px;
+    font-size: 0.85rem;
+    color: #107c10;
+    min-height: 1.2em;
+  }
+
+  /* ===== TOAST ===== */
+  #toast {
+    position: fixed;
+    bottom: 28px;
+    right: 28px;
+    background-color: #107c10;
+    color: #fff;
+    padding: 10px 22px;
+    border-radius: 6px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+    z-index: 9999;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.25);
+  }
+  #toast.show { opacity: 1; }
+
+  /* ===== FOOTER (v5 style) ===== */
+  footer {
+    text-align: center;
+    padding: 10px;
+    font-size: 0.8rem;
+    color: #888;
+  }
+
+  /* ===== SCROLLBAR (v5 style) ===== */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- ===== HEADER ===== -->
+<header>
+  <h1>議会答弁プロンプト生成ツール</h1>
+  <div id="header-status">入力内容に応じてプロンプトが自動生成されます</div>
+</header>
+
+<main>
+
+  <!-- ============================================================
+       LEFT PANEL: INPUT FORM
+  ============================================================ -->
+  <div class="left-panel">
+
+    <!-- 使い方 -->
+    <div class="instructions">
+      <h3>使い方</h3>
+      <ol>
+        <li>STEP 1〜5の各項目を入力・選択します。</li>
+        <li>右パネルにプロンプトがリアルタイム生成されます。</li>
+        <li>「プロンプトを生成 / 更新する」を押すと、プロンプトをコピーし、開くURLのページを開きます。開いたページに貼り付けてください。</li>
+        <li>「プロンプトをコピー」でもコピーだけ行えます。</li>
+        <li>タイプ C・D は実績データを必ず担当者が入力してください。</li>
+      </ol>
+    </div>
+
+    <!-- STEP 1: 基本情報 -->
+    <div class="section-card">
+      <div class="section-title">
+        <span class="step-badge">1</span>基本情報
+      </div>
+
+      <label class="form-label">自治体名 <span class="required">*</span></label>
+      <input type="text" id="city" value="一関市" placeholder="例：一関市" oninput="buildPrompt()">
+
+      <label class="form-label">答弁者 <span class="required">*</span></label>
+      <select id="responder" onchange="updateResponderBadge(); buildPrompt();">
+        <option value="市長">市長</option>
+        <option value="副市長">副市長</option>
+        <option value="教育長">教育長</option>
+        <option value="総務部長">総務部長</option>
+        <option value="市民環境部長">市民環境部長</option>
+        <option value="保健福祉部長">保健福祉部長</option>
+        <option value="産業振興部長">産業振興部長</option>
+        <option value="建設部長">建設部長</option>
+        <option value="農林部長">農林部長</option>
+        <option value="担当部長">担当部長</option>
+      </select>
+      <span class="info-badge" id="responder-badge">市長が答弁します</span>
+    </div>
+
+    <!-- STEP 2: 質問内容 -->
+    <div class="section-card">
+      <div class="section-title">
+        <span class="step-badge">2</span>質問の内容
+      </div>
+
+      <label class="form-label">質問件名 <span class="required">*</span></label>
+      <input type="text" id="q-title" placeholder="例：結婚対策と子育て支援について" oninput="buildPrompt(); syncStanceHint();">
+
+      <label class="form-label">質問内容（通告書の質問事項） <span class="required">*</span></label>
+      <textarea id="q-text" rows="3" placeholder="例：結婚対策について、市の基本的な考えを伺う。" oninput="buildPrompt(); countChars('q-text','q-text-cnt');"></textarea>
+      <div class="char-count" id="q-text-cnt">0 文字</div>
+
+      <label class="form-label">ヒアリング要旨（議員の意図・背景） <span class="required">*</span></label>
+      <textarea id="q-hearing" rows="4" placeholder="例：結婚はプライベートなことであるため、行政が踏み込むものではないというスタンスになりがちだが、一関市ではどのような考えをもって結婚支援を行っているか。" oninput="buildPrompt(); countChars('q-hearing','q-hearing-cnt');"></textarea>
+      <div class="char-count" id="q-hearing-cnt">0 文字</div>
+    </div>
+
+    <!-- STEP 3: 答弁の方向性 -->
+    <div class="section-card">
+      <div class="section-title">
+        <span class="step-badge">3</span>答弁の方向性
+      </div>
+
+      <label class="form-label">答弁スタンス <span class="required">*</span></label>
+      <div class="stance-group">
+        <button class="stance-btn positive is-active" id="btn-positive" onclick="setStance('positive')">肯定・推進</button>
+        <button class="stance-btn negative"           id="btn-negative" onclick="setStance('negative')">否定・困難</button>
+        <button class="stance-btn conditional"        id="btn-conditional" onclick="setStance('conditional')">条件付き</button>
+      </div>
+      <div class="stance-hint positive" id="stance-hint">
+        書き出し：「〔件名〕についてでありますが、」
+      </div>
+    </div>
+
+    <!-- STEP 4: 質問タイプ -->
+    <div class="section-card">
+      <div class="section-title">
+        <span class="step-badge">4</span>質問タイプの選択（複数可）
+      </div>
+
+      <div class="type-grid">
+        <!-- A -->
+        <label class="type-card" id="card-A">
+          <input type="checkbox" id="type-A" onchange="onTypeChange('A')">
+          <div>
+            <div class="type-code">タイプ A：方針・理念</div>
+            <div class="type-desc">市の基本的考え・施策方針を問う</div>
+            <div class="type-note-ok">AIのみで対応可</div>
+          </div>
+        </label>
+        <!-- B -->
+        <label class="type-card" id="card-B">
+          <input type="checkbox" id="type-B" onchange="onTypeChange('B')">
+          <div>
+            <div class="type-code">タイプ B：事業名・取り組み</div>
+            <div class="type-desc">具体的な事業・施策名を問う</div>
+            <div class="type-note-warn">事業名入力が必要</div>
+          </div>
+        </label>
+        <!-- C -->
+        <label class="type-card" id="card-C">
+          <input type="checkbox" id="type-C" onchange="onTypeChange('C')">
+          <div>
+            <div class="type-code">タイプ C：数値・実績</div>
+            <div class="type-desc">件数・金額・達成率などを問う</div>
+            <div class="type-note-warn">実績データ入力が必要</div>
+          </div>
+        </label>
+        <!-- D -->
+        <label class="type-card" id="card-D">
+          <input type="checkbox" id="type-D" onchange="onTypeChange('D')">
+          <div>
+            <div class="type-code">タイプ D：歴史・沿革</div>
+            <div class="type-desc">経緯・設立背景・変遷を問う</div>
+            <div class="type-note-warn">経緯情報入力が必要</div>
+          </div>
+        </label>
+        <!-- E -->
+        <label class="type-card" id="card-E">
+          <input type="checkbox" id="type-E" onchange="onTypeChange('E')">
+          <div>
+            <div class="type-code">タイプ E：外部情報参照</div>
+            <div class="type-desc">他自治体・国・法制度の情報が必要</div>
+            <div class="type-note-info">検索キーワードを入力</div>
+          </div>
+        </label>
+        <!-- F -->
+        <label class="type-card" id="card-F">
+          <input type="checkbox" id="type-F" onchange="onTypeChange('F')">
+          <div>
+            <div class="type-code">タイプ F：将来方針・展望</div>
+            <div class="type-desc">今後の方向性・予定・展望を問う</div>
+            <div class="type-note-ok">AIのみで対応可（基本）</div>
+          </div>
+        </label>
+      </div>
+
+      <!-- Dynamic panel B -->
+      <div class="dynamic-panel" id="panel-B">
+        <div class="dynamic-panel-header">タイプ B：事業名・取り組み内容を入力</div>
+        <div class="dynamic-panel-body">
+          <label class="form-label">事業名・担当部署・内容（箇条書き可）</label>
+          <textarea id="data-B" rows="4"
+            placeholder="例：&#10;・いちのせき出会いサポートセンター（設置年月日、概要）&#10;・縁結びサポーター制度（登録者数、活動内容）&#10;・出会いイベント補助（上限額、対象）"
+            oninput="buildPrompt()"></textarea>
+        </div>
+      </div>
+
+      <!-- Dynamic panel C -->
+      <div class="dynamic-panel" id="panel-C">
+        <div class="dynamic-panel-header">タイプ C：数値・実績データを入力</div>
+        <div class="dynamic-panel-body">
+          <label class="form-label">年度・件数・金額・達成率など</label>
+          <textarea id="data-C" rows="4"
+            placeholder="例：&#10;・令和4年度：利用者数 22人、使用料 12,200円&#10;・令和5年度：利用者数 25人、使用料 9,600円&#10;・令和6年度：利用者数 32人、使用料 13,800円"
+            oninput="buildPrompt()"></textarea>
+          <div class="warning-box">数値データは必ず担当者が確認・入力してください。AIが数値を生成すると誤情報になります。</div>
+        </div>
+      </div>
+
+      <!-- Dynamic panel D -->
+      <div class="dynamic-panel" id="panel-D">
+        <div class="dynamic-panel-header">タイプ D：歴史・沿革情報を入力</div>
+        <div class="dynamic-panel-body">
+          <label class="form-label">設置経緯・変遷・主な出来事</label>
+          <textarea id="data-D" rows="4"
+            placeholder="例：&#10;・昭和40年：○○公園として開設&#10;・平成15年：施設改修（休憩棟設置）&#10;・令和3年：クマ出没により一時閉鎖"
+            oninput="buildPrompt()"></textarea>
+          <div class="warning-box">歴史・経緯は内部資料を確認し、正確な情報を入力してください。</div>
+        </div>
+      </div>
+
+      <!-- Dynamic panel E -->
+      <div class="dynamic-panel" id="panel-E">
+        <div class="dynamic-panel-header">タイプ E：Web 検索キーワードを入力</div>
+        <div class="dynamic-panel-body">
+          <label class="form-label">調査したい事項・検索ワード</label>
+          <input type="text" id="data-E" placeholder="例：他自治体 結婚支援 補助金 事例" oninput="buildPrompt()">
+          <div class="info-box">このキーワードで Web 検索し、得られた情報をプロンプトの補足情報欄に追加してください。</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 5: 出力形式オプション -->
+    <div class="section-card">
+      <div class="section-title">
+        <span class="step-badge">5</span>出力形式の指示（任意）
+      </div>
+
+      <div class="options-grid">
+        <label class="opt-item"><input type="checkbox" id="opt-projects" onchange="buildPrompt()"> 具体的な事業名を必ず挙げる</label>
+        <label class="opt-item"><input type="checkbox" id="opt-nonumbers" onchange="buildPrompt()"> 詳細な数値は省略する</label>
+        <label class="opt-item"><input type="checkbox" id="opt-broad" onchange="buildPrompt()"> 大まかな方向性のみ示す</label>
+        <label class="opt-item"><input type="checkbox" id="opt-future" onchange="buildPrompt()"> 今後の方針を最後に加える</label>
+        <label class="opt-item"><input type="checkbox" id="opt-reason" onchange="buildPrompt()"> 理由・背景を詳しく説明する</label>
+        <label class="opt-item"><input type="checkbox" id="opt-compare" onchange="buildPrompt()"> 他自治体との比較を含める</label>
+      </div>
+
+      <label class="form-label">追加指示（自由記述）</label>
+      <textarea id="extra" rows="2" placeholder="例：担当部長が答弁するため、専門的な内容でよい。" oninput="buildPrompt()"></textarea>
+
+      <label class="form-label" for="targetUrl">開くURL</label>
+      <input id="targetUrl" type="url" value="https://copilot.microsoft.com/" placeholder="https://copilot.microsoft.com/" />
+
+      <button class="btn-generate" onclick="generateAndOpenUrl()">
+        プロンプトを生成 / 更新する
+      </button>
+      <div id="copyStatus"></div>
+    </div>
+
+  </div><!-- /left-panel -->
+
+
+  <!-- ============================================================
+       RIGHT PANEL: PROMPT PREVIEW
+  ============================================================ -->
+  <div class="right-panel" id="right-panel">
+
+    <div class="prompt-panel-header">生成プロンプト（リアルタイムプレビュー）</div>
+
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#0060aa"></div>質問文</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#b45300"></div>補足情報</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#c239b3"></div>作成指示</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#107c10"></div>スタンスルール</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#666"></div>文体ルール</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#7b2c8f"></div>オプション</div>
+    </div>
+
+    <div class="prompt-box" id="prompt-display">
+      <span class="placeholder">← 左の入力欄を埋めると、ここにプロンプトが表示されます。</span>
+    </div>
+
+    <div class="action-btns">
+      <button class="btn-copy" onclick="copyPrompt()">プロンプトをコピー</button>
+      <button class="btn-clear" onclick="clearAll()">クリア</button>
+    </div>
+
+    <div class="guide-box">
+      <div class="guide-title">使い方ガイド</div>
+      <div class="guide-body">
+        1. 左の入力を埋めると自動でプロンプトが更新されます<br>
+        2. タイプ B〜E は該当する補足データを入力してください<br>
+        3. 「プロンプトを生成 / 更新する」でコピー＋URLを開きます。開いたページに貼り付けてください<br>
+        4. タイプ C・D のデータは必ず担当者が確認してください
+      </div>
+    </div>
+
+  </div><!-- /right-panel -->
+
+</main>
+
+<footer>
+  議会答弁プロンプト生成ツール ― ChatGPT / Microsoft Copilot 向け自動プロンプト構築
+</footer>
+
+<div id="toast">コピーしました</div>
+
+
+<!-- ===== SCRIPT ===== -->
+<script>
+(function () {
+  'use strict';
+
+  let currentStance = 'positive';
+
+  /* ── Responder badge ── */
+  function updateResponderBadge() {
+    const r = document.getElementById('responder').value;
+    document.getElementById('responder-badge').textContent = r + 'が答弁します';
+  }
+  window.updateResponderBadge = updateResponderBadge;
+
+  /* ── Stance ── */
+  function setStance(stance) {
+    currentStance = stance;
+    ['positive','negative','conditional'].forEach(function(s) {
+      document.getElementById('btn-' + s).classList.remove('is-active');
+    });
+    document.getElementById('btn-' + stance).classList.add('is-active');
+    syncStanceHint();
+    buildPrompt();
+  }
+  window.setStance = setStance;
+
+  function syncStanceHint() {
+    const title = (document.getElementById('q-title').value.trim()) || '〔件名〕';
+    const hint  = document.getElementById('stance-hint');
+    hint.className = 'stance-hint ' + currentStance;
+    if (currentStance === 'positive') {
+      hint.innerHTML = '書き出し：「' + title + 'についてでありますが、」';
+    } else if (currentStance === 'negative') {
+      hint.innerHTML = '書き出し：「' + title + 'についてのお尋ねでありますが、」<br><strong>※ 否定の場合は理由・背景の明示が必要です</strong>';
+    } else {
+      hint.innerHTML = '項目ごとに「〜でありますが」/「〜のお尋ねでありますが」を使い分けること';
+    }
+  }
+  window.syncStanceHint = syncStanceHint;
+
+  /* ── Type card toggle ── */
+  function onTypeChange(t) {
+    const cb    = document.getElementById('type-' + t);
+    const card  = document.getElementById('card-' + t);
+    const panel = document.getElementById('panel-' + t);
+    card.classList.toggle('is-checked', cb.checked);
+    if (panel) panel.classList.toggle('is-open', cb.checked);
+    buildPrompt();
+  }
+  window.onTypeChange = onTypeChange;
+
+  /* ── Char count ── */
+  function countChars(id, cntId) {
+    document.getElementById(cntId).textContent =
+      document.getElementById(id).value.length + ' 文字';
+  }
+  window.countChars = countChars;
+
+  /* ── Build prompt ── */
+  function buildPrompt() {
+    const city      = (document.getElementById('city').value.trim())      || '一関市';
+    const responder = document.getElementById('responder').value;
+    const qTitle    = document.getElementById('q-title').value.trim();
+    const qText     = document.getElementById('q-text').value.trim();
+    const qHearing  = document.getElementById('q-hearing').value.trim();
+
+    const typeB = document.getElementById('type-B').checked;
+    const typeC = document.getElementById('type-C').checked;
+    const typeD = document.getElementById('type-D').checked;
+    const typeE = document.getElementById('type-E').checked;
+
+    const dataB = document.getElementById('data-B').value.trim();
+    const dataC = document.getElementById('data-C').value.trim();
+    const dataD = document.getElementById('data-D').value.trim();
+    const dataE = document.getElementById('data-E').value.trim();
+
+    const optProjects  = document.getElementById('opt-projects').checked;
+    const optNoNumbers = document.getElementById('opt-nonumbers').checked;
+    const optBroad     = document.getElementById('opt-broad').checked;
+    const optFuture    = document.getElementById('opt-future').checked;
+    const optReason    = document.getElementById('opt-reason').checked;
+    const optCompare   = document.getElementById('opt-compare').checked;
+    const extra        = document.getElementById('extra').value.trim();
+
+    if (!qTitle && !qText && !qHearing) {
+      document.getElementById('prompt-display').innerHTML =
+        '<span class="placeholder">← 左の入力欄を埋めると、ここにプロンプトが表示されます。</span>';
+      return;
+    }
+
+    const parts = [];
+
+    /* ── BLOCK 1: 質問文 ── */
+    let qBlock = '';
+    if (qText && qHearing) {
+      qBlock = qText + qHearing;
+    } else {
+      qBlock = qText || qHearing;
+    }
+    if (qBlock) {
+      parts.push({ cls: 'seg-q', text: qBlock });
+    }
+
+    /* ── BLOCK 2: 補足情報 ── */
+    const sups = [];
+    if (typeB && dataB) sups.push('【' + city + 'の関連事業・取り組み】\n' + dataB);
+    if (typeC && dataC) sups.push('【実績・数値データ（必ず使用すること）】\n' + dataC);
+    if (typeD && dataD) sups.push('【歴史・沿革情報（必ず使用すること）】\n' + dataD);
+    if (typeE && dataE) sups.push('【参考：Web検索キーワード → "' + dataE + '" の検索結果を踏まえて回答すること】');
+    if (sups.length > 0) {
+      parts.push({ cls: 'seg-sup',
+        text: '\n\n以下の情報を必ず参照・使用して回答を作成すること：\n' + sups.join('\n\n')
+      });
+    }
+
+    /* ── BLOCK 3: 作成指示 ── */
+    parts.push({ cls: 'seg-inst',
+      text: '\n\nという' + city + '議会の議員からの質問に対して、' +
+            responder + 'の立場で、' + city + 'の議会答弁書を作成してください。'
+    });
+
+    /* ── BLOCK 4: スタンスルール ── */
+    let stanceText = '';
+    const titleOrPlaceholder = qTitle || '〔件名〕';
+    if (currentStance === 'positive') {
+      stanceText =
+        '\n\n【答弁スタンス：肯定・推進】\n' +
+        '答弁の書き出しは「' + titleOrPlaceholder + 'についてでありますが、」とすること。';
+    } else if (currentStance === 'negative') {
+      stanceText =
+        '\n\n【答弁スタンス：否定・困難】\n' +
+        '答弁の書き出しは「' + titleOrPlaceholder + 'についてのお尋ねでありますが、」とすること。\n' +
+        '否定的な答弁には必ず【理由・背景・現在の課題】を明示し、単純な「検討していない」は使用しないこと。';
+    } else {
+      stanceText =
+        '\n\n【答弁スタンス：条件付き】\n' +
+        '肯定できる項目は「〜についてでありますが、」、否定・困難な項目は「〜についてのお尋ねでありますが、」と書き出しを使い分けること。\n' +
+        '否定的な内容には必ず理由を付すこと。';
+    }
+    parts.push({ cls: 'seg-st', text: stanceText });
+
+    /* ── BLOCK 5: 文体・用語ルール ── */
+    parts.push({ cls: 'seg-rule',
+      text:
+        '\n\n【文体・用語ルール（必ず遵守）】\n' +
+        '・文体は「である調」または体言止め（です・ます調は不可）\n' +
+        '・「当市」→「' + city + '」に置き換えること\n' +
+        '・「今年度」→「本年度」、「つきましては」→「ついては」を使用\n' +
+        '・主語・述語の整合性を確認し、省略の場合は指示対象が明確なこと\n' +
+        '・5W1H（誰が・いつ・どこで・何を・なぜ・どのように）を意識した記述\n' +
+        '・数字：1桁は全角、2桁以上は半角。千単位は使わず「万」「億」を使用\n' +
+        '・固有名詞は略称でなく正式名称を使用'
+    });
+
+    /* ── BLOCK 6: オプション ── */
+    const opts = [];
+    if (optProjects)  opts.push('・具体的な事業名・施設名を必ず挙げること');
+    if (optNoNumbers) opts.push('・詳細な数値・金額の記載は省略すること');
+    if (optBroad)     opts.push('・大まかな方向性・考え方のみを示すこと（詳細は省略可）');
+    if (optFuture)    opts.push('・答弁の最後に「今後の方針・展望」を1文加えること');
+    if (optReason)    opts.push('・各施策の理由・背景を丁寧に説明すること');
+    if (optCompare)   opts.push('・他自治体の取り組みとの比較・言及を含めること');
+    if (extra)        opts.push('・' + extra);
+    if (opts.length > 0) {
+      parts.push({ cls: 'seg-opt',
+        text: '\n\n【出力形式・追加指示】\n' + opts.join('\n')
+      });
+    }
+
+    /* ── Render ── */
+    const box = document.getElementById('prompt-display');
+    box.innerHTML = parts.map(function(p) {
+      return '<span class="' + p.cls + '">' + escHtml(p.text) + '</span>';
+    }).join('');
+  }
+  window.buildPrompt = buildPrompt;
+
+  function escHtml(s) {
+    return s
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\n/g, '<br>');
+  }
+
+  /* ── tryCopyText: fallback（同期）→ Clipboard API の順で試みる ── */
+  function tryCopyText(text) {
+    if (fallbackCopy(text)) {
+      return Promise.resolve(true);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text)
+        .then(function() { return true; })
+        .catch(function() { return false; });
+    }
+    return Promise.resolve(false);
+  }
+
+  /* ── Copy ── */
+  function copyPrompt() {
+    const box  = document.getElementById('prompt-display');
+    const text = (box.innerText || box.textContent || '').trim();
+    if (!text || text.includes('← 左の入力欄')) {
+      alert('先に質問内容を入力してください。');
+      return;
+    }
+    const toast = document.getElementById('toast');
+    tryCopyText(text).then(function(copied) {
+      if (copied) {
+        toast.classList.add('show');
+        setTimeout(function(){ toast.classList.remove('show'); }, 2200);
+      } else {
+        alert('クリップボードへのコピーに失敗しました。手動でコピーしてください。');
+      }
+    });
+  }
+  window.copyPrompt = copyPrompt;
+
+  function fallbackCopy(text) {
+    const el = document.createElement('textarea');
+    el.value = text;
+    el.style.cssText = 'position:fixed;opacity:0;top:0;left:0;';
+    document.body.appendChild(el);
+    el.focus();
+    el.select();
+    var copied = false;
+    try { copied = document.execCommand('copy'); } catch(e) { copied = false; }
+    document.body.removeChild(el);
+    return copied;
+  }
+
+  /* ── Clear ── */
+  function clearAll() {
+    if (!confirm('入力内容をすべてクリアしますか？')) return;
+    document.getElementById('city').value      = '一関市';
+    document.getElementById('responder').value = '市長';
+    document.getElementById('q-title').value   = '';
+    document.getElementById('q-text').value    = '';
+    document.getElementById('q-hearing').value = '';
+    ['A','B','C','D','E','F'].forEach(function(t) {
+      const cb   = document.getElementById('type-' + t);
+      const card = document.getElementById('card-' + t);
+      const panel= document.getElementById('panel-' + t);
+      if (cb)   cb.checked = false;
+      if (card) card.classList.remove('is-checked');
+      if (panel)panel.classList.remove('is-open');
+    });
+    ['data-B','data-C','data-D','data-E'].forEach(function(id) {
+      document.getElementById(id).value = '';
+    });
+    ['opt-projects','opt-nonumbers','opt-broad','opt-future','opt-reason','opt-compare'].forEach(function(id) {
+      document.getElementById(id).checked = false;
+    });
+    document.getElementById('extra').value = '';
+    document.getElementById('q-text-cnt').textContent    = '0 文字';
+    document.getElementById('q-hearing-cnt').textContent = '0 文字';
+    currentStance = 'positive';
+    setStance('positive');
+    updateResponderBadge();
+    buildPrompt();
+  }
+  window.clearAll = clearAll;
+
+  /* ── Scroll right panel to top ── */
+  function scrollRightToTop() {
+    document.getElementById('right-panel').scrollTop = 0;
+  }
+  window.scrollRightToTop = scrollRightToTop;
+
+  /* ── Generate + Copy + Open URL (v5 style) ── */
+  function generateAndOpenUrl() {
+    buildPrompt();
+    scrollRightToTop();
+
+    const box = document.getElementById('prompt-display');
+    const text = (box.innerText || box.textContent || '').trim();
+    const targetUrlEl = document.getElementById('targetUrl');
+    const copyStatus = document.getElementById('copyStatus');
+    const targetUrl = targetUrlEl ? targetUrlEl.value.trim() : '';
+
+    if (copyStatus) copyStatus.textContent = '';
+
+    if (!text || text.includes('← 左の入力欄')) {
+      alert('先に質問内容を入力してください。');
+      return;
+    }
+
+    if (!targetUrl) {
+      alert('開くURLを入力してください。');
+      return;
+    }
+
+    // コピーはタブ遷移より先に実行（フォーカス喪失で失敗しやすいため）
+    const copyPromise = tryCopyText(text);
+
+    // ユーザー操作コンテキスト中に即時で開く
+    const targetTab = window.open(targetUrl, '_blank');
+    const popupBlocked = !targetTab;
+    if (!targetTab && copyStatus) {
+      copyStatus.textContent = 'ポップアップがブロックされました。許可後に再実行してください。';
+    }
+
+    copyPromise.then(function(copied) {
+      if (!copyStatus) return;
+      if (copied && !popupBlocked) {
+        copyStatus.textContent = 'クリップボードにコピーしました。開いたページに貼り付けてください。';
+        return;
+      }
+      if (copied && popupBlocked) {
+        copyStatus.textContent = 'コピーしました。ポップアップを許可して再度URLを開いてください。';
+        return;
+      }
+      if (!copied && !popupBlocked) {
+        copyStatus.textContent = 'コピーに失敗しました。手動でコピーしてください。';
+        alert('クリップボードへのコピーに失敗しました。');
+        return;
+      }
+      copyStatus.textContent = 'コピーとURLオープンの両方に失敗しました。';
+      alert('コピーに失敗し、ポップアップもブロックされました。');
+    });
+  }
+  window.generateAndOpenUrl = generateAndOpenUrl;
+
+  /* ── Init ── */
+  updateResponderBadge();
+  syncStanceHint();
+  buildPrompt();
+
+})();
+</script>
+</body>
+</html>
